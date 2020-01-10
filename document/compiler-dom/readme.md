@@ -1,4 +1,7 @@
 ## compiler-dom
+
+这是compiler-dom的入口方法
+
 ```ts
 import { baseCompile, CompilerOptions, CodegenResult } from '@vue/compiler-core'
 import { parserOptionsMinimal } from './parserOptionsMinimal'
@@ -10,40 +13,45 @@ import { transformVText } from './transforms/vText'
 import { transformModel } from './transforms/vModel'
 import { transformOn } from './transforms/vOn'
 
-function complile(template, options){
+export function compile(
+  template: string,
+  options: CompilerOptions = {}
+): CodegenResult {
   return baseCompile(template, {
-    parserOptionsMinimal,
-    nodeTransforms: [transformStyle],
+    ...options,
+    ...(__BROWSER__ ? parserOptionsMinimal : parserOptionsStandard),
+    nodeTransforms: [transformStyle, ...(options.nodeTransforms || [])],
     directiveTransforms: {
       cloak: transformCloak,
       html: transformVHtml,
       text: transformVText,
-      model: transformModel,
-      on: transformOn)
+      model: transformModel, // override compiler-core
+      on: transformOn,
+      ...(options.directiveTransforms || {})
     }
-  }
+  })
 }
 ```
 
 
 ## 简述
-compiler-dom，在compiler-core的基础上，进行进一步的解析（增加了directiveTransforms参数）。
-从main function中可以看出，涉及到了style、v-on、v-model的解析，这里涉及到compiler-core的就不作介绍了
 
+compiler-dom, 在compiler-core的基础上
+进行进一步的解析
+增加了directiveTransforms参数
+从main function中可以看出
+涉及到了style, v-on, v-model的解析
+这里涉及到compiler-core的就不作介绍了
 
-- 返回DirectiveTransform的方法
 
 
 ## 功能
 
-**transformStyle**
+1.transformStyle
+
 解析style节点，用解析完成的结果，替换掉prop
 ```ts
-import {
-  NodeTransform,
-  NodeTypes,
-  createSimpleExpression
-} from '@vue/compiler-core'
+import { NodeTransform, NodeTypes, createSimpleExpression } from '@vue/compiler-core'
 
 export const transformStyle: NodeTransform = (node, context) => {
   if (node.type === NodeTypes.ELEMENT) {
@@ -81,8 +89,11 @@ function parseInlineCSS(cssText: string): Record<string, string> {
 ```
 
 
-**transformCloak**
-解析v-cloak，v-cloak用于解决{{}}解析闪烁的问题
+2.transformCloak
+
+解析v-cloak, v-cloak用于解决{{}}解析闪烁的问题  
+
+TODO: 如何实现
 ```ts
 export const transformCloak: DirectiveTransform = (node, context) => {
   return { props: [], needRuntime: false }
@@ -90,8 +101,13 @@ export const transformCloak: DirectiveTransform = (node, context) => {
 ```
 
 
-**transformVHtml**
-返回一个DirectiveTransform对象: { props: Property[], needRuntime: boolean | symbol }
+3.transformVHtml
+
+返回一个DirectiveTransform对象
+( v-html是为了输出html, 请防止xss攻击, v-text是为了代替双花括号标签 )
+( <div v-text="data"></div> 等同于 <div>{{data}}</div> )
+
+TODO: context.onError后续如何调用, DirectiveTransform作用
 ```ts
 import {
   DirectiveTransform,
@@ -126,8 +142,9 @@ export const transformVHtml: DirectiveTransform = (dir, node, context) => {
 ```
 
 
-**transformVText**
-——————————
+4.transformVText 
+
+返回一个DirectiveTransform对象
 ```ts
 export const transformVText: DirectiveTransform = (dir, node, context) => {
   const { exp, loc } = dir
@@ -155,8 +172,10 @@ export const transformVText: DirectiveTransform = (dir, node, context) => {
 
 ```
 
-**transformModel**
-——————————
+
+5.transformModel
+
+返回一个DirectiveTransform对象
 ```ts
 export const transformModel: DirectiveTransform = (dir, node, context) => {
   const baseResult = baseTransform(dir, node, context)
@@ -229,8 +248,9 @@ export const transformModel: DirectiveTransform = (dir, node, context) => {
 ```
 
 
-**transformOn**
-——————————
+6.transformOn
+
+返回一个DirectiveTransform对象
 ```ts
 export const transformOn: DirectiveTransform = (dir, node, context) => {
   return baseTransform(dir, node, context, baseResult => {
